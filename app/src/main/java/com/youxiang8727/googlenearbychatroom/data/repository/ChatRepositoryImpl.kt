@@ -55,6 +55,10 @@ class ChatRepositoryImpl @Inject constructor(
         messageDao.updateMessageStatus(messageId, status.name)
     }
 
+    override suspend fun deleteMessagesByChatroom(chatroomId: String) {
+        messageDao.deleteMessagesByChatroom(chatroomId)
+    }
+
     override suspend fun getExpiredVideos(expiryTime: Long): List<ChatMessage> {
         return messageDao.getExpiredVideos(expiryTime).map { entity ->
             ChatMessage(

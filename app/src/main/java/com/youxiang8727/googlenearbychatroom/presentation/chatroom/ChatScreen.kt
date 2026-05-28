@@ -58,6 +58,7 @@ fun ChatScreen(
 ) {
     var messageText by remember { mutableStateOf("") }
     var playingVideoUri by remember { mutableStateOf<String?>(null) }
+    var showExitDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -97,8 +98,7 @@ fun ChatScreen(
     }
 
     BackHandler {
-        onEvent(ChatroomContract.Event.Disconnect)
-        onBack()
+        showExitDialog = true
     }
 
     LaunchedEffect(state.messages.size) {
@@ -125,7 +125,7 @@ fun ChatScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { showExitDialog = true }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -253,6 +253,34 @@ fun ChatScreen(
         VideoPlayerDialog(
             videoUri = uri,
             onDismiss = { playingVideoUri = null }
+        )
+    }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Exit Chatroom") },
+            text = { Text("Do you want to keep the chat history for this room?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExitDialog = false
+                    onEvent(ChatroomContract.Event.Disconnect)
+                    onBack()
+                }) {
+                    Text("Keep History")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showExitDialog = false
+                    val roomToClear = if (state.isAdvertising) state.userId else state.chatroomId
+                    onEvent(ChatroomContract.Event.DeleteChatHistory(roomToClear))
+                    onEvent(ChatroomContract.Event.Disconnect)
+                    onBack()
+                }) {
+                    Text("Delete History", color = MaterialTheme.colorScheme.error)
+                }
+            }
         )
     }
 }

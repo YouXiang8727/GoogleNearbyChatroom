@@ -18,6 +18,7 @@ interface NearbyRepository {
     suspend fun connectTo(chatroom: Chatroom, userName: String, userId: String)
     suspend fun sendMessage(message: String, userName: String, userId: String)
     suspend fun sendMediaMessage(uri: String, type: com.youxiang8727.googlenearbychatroom.domain.model.MessageType, userName: String, userId: String)
+    suspend fun clearChatroomMedia(chatroomId: String)
     suspend fun disconnect()
 
     companion object {

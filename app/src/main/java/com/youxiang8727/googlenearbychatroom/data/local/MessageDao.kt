@@ -18,6 +18,9 @@ interface MessageDao {
     @Query("UPDATE messages SET status = :status WHERE id = :messageId")
     suspend fun updateMessageStatus(messageId: String, status: String)
 
+    @Query("DELETE FROM messages WHERE chatroomId = :chatroomId")
+    suspend fun deleteMessagesByChatroom(chatroomId: String)
+
     @Query("SELECT * FROM messages WHERE type = 'VIDEO' AND timestamp < :expiryTime AND mediaUri IS NOT NULL")
     suspend fun getExpiredVideos(expiryTime: Long): List<MessageEntity>
 }

@@ -59,6 +59,7 @@ class ChatroomViewModel @Inject constructor(
             is ChatroomContract.Event.ConnectToChatroom -> connectToChatroom(event.chatroom)
             is ChatroomContract.Event.SendMessage -> sendMessage(event.message)
             is ChatroomContract.Event.SendMedia -> sendMedia(event.uri, event.type)
+            is ChatroomContract.Event.DeleteChatHistory -> deleteHistory(event.chatroomId)
             is ChatroomContract.Event.Disconnect -> disconnect()
             is ChatroomContract.Event.SetUserName -> updateUserName(event.name)
             is ChatroomContract.Event.OnEditingNameChange -> {
@@ -190,6 +191,16 @@ class ChatroomViewModel @Inject constructor(
             } catch (e: Exception) {
                 setEffect { ChatroomContract.Effect.ShowToast(e.message ?: "Failed to send media") }
             }
+        }
+    }
+
+    private fun deleteHistory(chatroomId: String) {
+        viewModelScope.launch {
+            // Delete DB records
+            chatRepository.deleteMessagesByChatroom(chatroomId)
+            
+            // Delete Physical Files from Storage
+            nearbyRepository.clearChatroomMedia(chatroomId)
         }
     }
 

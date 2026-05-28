@@ -218,7 +218,11 @@ class NearbyRepositoryImpl @Inject constructor(
             MessageType.GIF -> "gif"
             else -> "dat"
         }
-        val permanentFile = File(context.filesDir, "media_${System.currentTimeMillis()}.$extension")
+        
+        val roomDir = File(context.filesDir, "media_${metadata.chatroomId}")
+        if (!roomDir.exists()) roomDir.mkdirs()
+        
+        val permanentFile = File(roomDir, "media_${System.currentTimeMillis()}.$extension")
 
         // Thumbnail logic
         var thumbnailUri: String? = null
@@ -233,7 +237,7 @@ class NearbyRepositoryImpl @Inject constructor(
                 }
                 val bitmap = retriever.getFrameAtTime(0)
                 if (bitmap != null) {
-                    val thumbFile = File(context.filesDir, "thumb_${System.currentTimeMillis()}.jpg")
+                    val thumbFile = File(roomDir, "thumb_${System.currentTimeMillis()}.jpg")
                     thumbFile.outputStream().use {
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 70, it)
                     }
@@ -401,7 +405,25 @@ class NearbyRepositoryImpl @Inject constructor(
         try {
             val contentUri = uri.toUri()
 
-            // Check file size
+            val roomDir = File(context.filesDir, "media_$currentChatroomId")
+            if (!roomDir.exists()) roomDir.mkdirs()
+
+            // Copy file to internal storage for persistence
+            val extension = when (type) {
+                MessageType.IMAGE -> "jpg"
+                MessageType.VIDEO -> "mp4"
+                MessageType.GIF -> "gif"
+                else -> "dat"
+            }
+            val localFile = File(roomDir, "sent_media_${System.currentTimeMillis()}.$extension")
+            context.contentResolver.openInputStream(contentUri)?.use { input ->
+                localFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            val localMediaUri = Uri.fromFile(localFile).toString()
+
+            // Thumbnail for Host
             var thumbnailUri: String? = null
             if (type == MessageType.VIDEO) {
                 try {
@@ -409,7 +431,7 @@ class NearbyRepositoryImpl @Inject constructor(
                     retriever.setDataSource(context, contentUri)
                     val bitmap = retriever.getFrameAtTime(0)
                     if (bitmap != null) {
-                        val thumbFile = File(context.filesDir, "thumb_${System.currentTimeMillis()}.jpg")
+                        val thumbFile = File(roomDir, "thumb_${System.currentTimeMillis()}.jpg")
                         thumbFile.outputStream().use {
                             bitmap.compress(Bitmap.CompressFormat.JPEG, 70, it)
                         }
@@ -420,28 +442,6 @@ class NearbyRepositoryImpl @Inject constructor(
                     Log.e("NearbyRepository", "Failed to generate thumbnail for outgoing video", e)
                 }
             }
-
-            context.contentResolver.openAssetFileDescriptor(contentUri, "r")?.use { afd ->
-                val size = afd.length
-                if (size > NearbyRepository.MAX_MEDIA_SIZE_BYTES) {
-                    throw IllegalArgumentException("File size exceeds the 10MB limit")
-                }
-            }
-
-            // Copy file to internal storage for persistence
-            val extension = when (type) {
-                MessageType.IMAGE -> "jpg"
-                MessageType.VIDEO -> "mp4"
-                MessageType.GIF -> "gif"
-                else -> "dat"
-            }
-            val localFile = File(context.filesDir, "sent_media_${System.currentTimeMillis()}.$extension")
-            context.contentResolver.openInputStream(contentUri)?.use { input ->
-                localFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-            val localMediaUri = Uri.fromFile(localFile).toString()
 
             val pfd = context.contentResolver.openFileDescriptor(localMediaUri.toUri(), "r") ?: return@withContext
             val filePayload = Payload.fromFile(pfd)
@@ -477,6 +477,15 @@ class NearbyRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Log.e("NearbyRepository", "Failed to send media message", e)
             throw e
+        }
+    }
+
+    override suspend fun clearChatroomMedia(chatroomId: String) {
+        withContext(Dispatchers.IO) {
+            val roomDir = File(context.filesDir, "media_$chatroomId")
+            if (roomDir.exists()) {
+                roomDir.deleteRecursively()
+            }
         }
     }
 

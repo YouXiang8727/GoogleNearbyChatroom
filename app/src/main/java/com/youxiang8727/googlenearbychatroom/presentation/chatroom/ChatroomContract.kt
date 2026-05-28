@@ -29,6 +29,7 @@ class ChatroomContract {
         data class ConnectToChatroom(val chatroom: Chatroom) : Event()
         data class SendMessage(val message: String) : Event()
         data class SendMedia(val uri: String, val type: com.youxiang8727.googlenearbychatroom.domain.model.MessageType) : Event()
+        data class DeleteChatHistory(val chatroomId: String) : Event()
         object Disconnect : Event()
         data class SetUserName(val name: String) : Event()
         data class OnEditingNameChange(val isEditing: Boolean) : Event()
