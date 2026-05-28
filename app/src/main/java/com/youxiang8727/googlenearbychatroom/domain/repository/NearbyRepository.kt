@@ -19,9 +19,11 @@ interface NearbyRepository {
     suspend fun sendMessage(message: String, userName: String, userId: String)
     suspend fun sendMediaMessage(uri: String, type: com.youxiang8727.googlenearbychatroom.domain.model.MessageType, userName: String, userId: String)
     suspend fun clearChatroomMedia(chatroomId: String)
+    suspend fun downloadMedia(uri: String, type: com.youxiang8727.googlenearbychatroom.domain.model.MessageType)
     suspend fun disconnect()
 
     companion object {
-        const val MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024L // 10 MB
+        const val MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024L // 10 MB
+        const val MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024L // 100 MB
     }
 }

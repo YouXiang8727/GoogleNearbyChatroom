@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
@@ -58,6 +59,7 @@ fun ChatScreen(
 ) {
     var messageText by remember { mutableStateOf("") }
     var playingVideoUri by remember { mutableStateOf<String?>(null) }
+    var expandedImageUri by remember { mutableStateOf<String?>(null) }
     var showExitDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
@@ -154,7 +156,8 @@ fun ChatScreen(
                     items(state.messages) { message ->
                         MessageBubble(
                             message = message,
-                            onVideoClick = { playingVideoUri = it }
+                            onVideoClick = { playingVideoUri = it },
+                            onImageClick = { expandedImageUri = it }
                         )
                     }
                 }
@@ -252,7 +255,20 @@ fun ChatScreen(
     playingVideoUri?.let { uri ->
         VideoPlayerDialog(
             videoUri = uri,
-            onDismiss = { playingVideoUri = null }
+            onDismiss = { playingVideoUri = null },
+            onDownload = { onEvent(ChatroomContract.Event.DownloadMedia(uri, MessageType.VIDEO)) }
+        )
+    }
+
+    expandedImageUri?.let { uri ->
+        // Find the message to determine if it's IMAGE or GIF
+        val message = state.messages.find { it.mediaUri == uri }
+        val type = message?.type ?: MessageType.IMAGE
+        
+        FullScreenImageDialog(
+            imageUri = uri,
+            onDismiss = { expandedImageUri = null },
+            onDownload = { onEvent(ChatroomContract.Event.DownloadMedia(uri, type)) }
         )
     }
 
@@ -286,7 +302,11 @@ fun ChatScreen(
 }
 
 @Composable
-fun VideoPlayerDialog(videoUri: String, onDismiss: () -> Unit) {
+fun VideoPlayerDialog(
+    videoUri: String, 
+    onDismiss: () -> Unit,
+    onDownload: () -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -310,7 +330,7 @@ fun VideoPlayerDialog(videoUri: String, onDismiss: () -> Unit) {
             modifier = Modifier.fillMaxSize(),
             color = Color.Black
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 AndroidView(
                     factory = {
                         PlayerView(context).apply {
@@ -320,13 +340,63 @@ fun VideoPlayerDialog(videoUri: String, onDismiss: () -> Unit) {
                     },
                     modifier = Modifier.fillMaxSize()
                 )
-                IconButton(
-                    onClick = onDismiss,
+                
+                Row(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(16.dp)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close", tint = Color.White)
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close", tint = Color.White)
+                    }
+                    
+                    IconButton(onClick = onDownload) {
+                        Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FullScreenImageDialog(
+    imageUri: String, 
+    onDismiss: () -> Unit,
+    onDownload: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Black
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AsyncImage(
+                    model = imageUri,
+                    contentDescription = "Expanded Image",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    
+                    IconButton(onClick = onDownload) {
+                        Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.White)
+                    }
                 }
             }
         }
@@ -336,7 +406,8 @@ fun VideoPlayerDialog(videoUri: String, onDismiss: () -> Unit) {
 @Composable
 fun MessageBubble(
     message: ChatMessage,
-    onVideoClick: (String) -> Unit = {}
+    onVideoClick: (String) -> Unit = {},
+    onImageClick: (String) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isExpired = remember(message.mediaUri) {
@@ -432,9 +503,15 @@ fun MessageBubble(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.then(
-                            if (message.type == MessageType.VIDEO && !isExpired) {
-                                Modifier.clickable { onVideoClick(message.mediaUri) }
-                            } else Modifier
+                            when {
+                                message.type == MessageType.VIDEO && !isExpired -> {
+                                    Modifier.clickable { onVideoClick(message.mediaUri) }
+                                }
+                                message.type == MessageType.IMAGE || message.type == MessageType.GIF -> {
+                                    Modifier.clickable { onImageClick(message.mediaUri) }
+                                }
+                                else -> Modifier
+                            }
                         )
                     ) {
                         AsyncImage(

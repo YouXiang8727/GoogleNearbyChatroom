@@ -60,6 +60,7 @@ class ChatroomViewModel @Inject constructor(
             is ChatroomContract.Event.SendMessage -> sendMessage(event.message)
             is ChatroomContract.Event.SendMedia -> sendMedia(event.uri, event.type)
             is ChatroomContract.Event.DeleteChatHistory -> deleteHistory(event.chatroomId)
+            is ChatroomContract.Event.DownloadMedia -> downloadMedia(event.uri, event.type)
             is ChatroomContract.Event.Disconnect -> disconnect()
             is ChatroomContract.Event.SetUserName -> updateUserName(event.name)
             is ChatroomContract.Event.OnEditingNameChange -> {
@@ -201,6 +202,17 @@ class ChatroomViewModel @Inject constructor(
             
             // Delete Physical Files from Storage
             nearbyRepository.clearChatroomMedia(chatroomId)
+        }
+    }
+
+    private fun downloadMedia(uri: String, type: com.youxiang8727.googlenearbychatroom.domain.model.MessageType) {
+        viewModelScope.launch {
+            try {
+                nearbyRepository.downloadMedia(uri, type)
+                setEffect { ChatroomContract.Effect.ShowToast("Media saved to gallery") }
+            } catch (e: Exception) {
+                setEffect { ChatroomContract.Effect.ShowToast("Failed to save media: ${e.message}") }
+            }
         }
     }
 

@@ -1,9 +1,13 @@
 package com.youxiang8727.googlenearbychatroom.data.repository
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import androidx.core.net.toUri
 import com.google.android.gms.nearby.Nearby
@@ -485,6 +489,52 @@ class NearbyRepositoryImpl @Inject constructor(
             val roomDir = File(context.filesDir, "media_$chatroomId")
             if (roomDir.exists()) {
                 roomDir.deleteRecursively()
+            }
+        }
+    }
+
+    override suspend fun downloadMedia(uri: String, type: MessageType) {
+        withContext(Dispatchers.IO) {
+            try {
+                val sourceUri = Uri.parse(uri)
+                val fileName = "Nearby_${System.currentTimeMillis()}.${if (type == MessageType.VIDEO) "mp4" else if (type == MessageType.GIF) "gif" else "jpg"}"
+                
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, when (type) {
+                        MessageType.IMAGE -> "image/jpeg"
+                        MessageType.VIDEO -> "video/mp4"
+                        MessageType.GIF -> "image/gif"
+                        else -> "application/octet-stream"
+                    })
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, if (type == MessageType.VIDEO) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES)
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+                }
+
+                val collection = if (type == MessageType.VIDEO) {
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                } else {
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                }
+
+                val destinationUri = context.contentResolver.insert(collection, contentValues) ?: return@withContext
+
+                context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                    context.contentResolver.openOutputStream(destinationUri)?.use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    context.contentResolver.update(destinationUri, contentValues, null, null)
+                }
+            } catch (e: Exception) {
+                Log.e("NearbyRepository", "Failed to download media", e)
+                throw e
             }
         }
     }
