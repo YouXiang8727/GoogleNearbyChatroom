@@ -1,7 +1,7 @@
 package com.youxiang8727.googlenearbychatroom.domain.model
 
 enum class MessageType {
-    TEXT, IMAGE, VIDEO, GIF
+    TEXT, IMAGE, VIDEO, GIF, KICK
 }
 
 enum class MessageStatus {

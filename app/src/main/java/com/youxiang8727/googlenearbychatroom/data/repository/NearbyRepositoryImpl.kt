@@ -79,6 +79,8 @@ class NearbyRepositoryImpl @Inject constructor(
     private val outgoingPayloads = mutableMapOf<Long, String>()
     // To track how many payloads are still in flight for a specific message
     private val pendingPayloadsCount = mutableMapOf<String, Int>()
+    // To track kick payloads that need to be followed by a disconnect
+    private val pendingKickPayloads = mutableMapOf<Long, String>() // payloadId -> endpointId
 
     private fun getFormattedName(endpointId: String): String {
         val rawName = endpointNames[endpointId] ?: return endpointId
@@ -161,6 +163,14 @@ class NearbyRepositoryImpl @Inject constructor(
                     try {
                         val json = String(bytes, Charsets.UTF_8)
                         val message = gson.fromJson(json, ChatMessage::class.java)
+                        
+                        // Handle Kick Message
+                        if (message.type == MessageType.KICK) {
+                            _messages.tryEmit(message) // Emit so ViewModel can show toast
+                            repositoryScope.launch { disconnect() }
+                            return@let
+                        }
+
                         val receivedMessage = message.copy(isFromMe = false)
 
                         // If this is a metadata for a file, it uses filePayloadId for mapping
@@ -196,6 +206,13 @@ class NearbyRepositoryImpl @Inject constructor(
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
             if (update.status == PayloadTransferUpdate.Status.SUCCESS) {
+                // Handle Kick Disconnect
+                pendingKickPayloads.remove(update.payloadId)?.let { targetEndpointId ->
+                    connectionsClient.disconnectFromEndpoint(targetEndpointId)
+                    _connectedEndpoints.update { it - targetEndpointId }
+                    _connectedUsers.update { it - targetEndpointId }
+                }
+
                 // Check if this was an outgoing payload
                 outgoingPayloads.remove(update.payloadId)?.let { messageId ->
                     val remaining = (pendingPayloadsCount[messageId] ?: 1) - 1
@@ -555,6 +572,31 @@ class NearbyRepositoryImpl @Inject constructor(
                 throw e
             }
         }
+    }
+
+    override suspend fun kickUser(endpointId: String) {
+        val userName = _connectedUsers.value[endpointId]?.first ?: "Someone"
+        val userId = _connectedUsers.value[endpointId]?.second ?: "Unknown"
+        
+        // 1. Send Kick Payload to the specific user
+        val kickMessage = ChatMessage(
+            chatroomId = currentChatroomId,
+            content = "You have been kicked by the host.",
+            senderName = "System",
+            isFromMe = false,
+            type = MessageType.KICK,
+            isSystemMessage = true
+        )
+        val json = gson.toJson(kickMessage)
+        val payload = Payload.fromBytes(json.toByteArray(Charsets.UTF_8))
+        
+        // Track this payload to disconnect after success
+        pendingKickPayloads[payload.id] = endpointId
+        
+        connectionsClient.sendPayload(endpointId, payload)
+        
+        // 2. Local notification (Host side)
+        emitSystemMessage("$userName #$userId has been kicked from the chatroom")
     }
 
     override suspend fun disconnect() {

@@ -61,6 +61,7 @@ class ChatroomViewModel @Inject constructor(
             is ChatroomContract.Event.SendMedia -> sendMedia(event.uri, event.type)
             is ChatroomContract.Event.DeleteChatHistory -> deleteHistory(event.chatroomId)
             is ChatroomContract.Event.DownloadMedia -> downloadMedia(event.uri, event.type)
+            is ChatroomContract.Event.KickUser -> kickUser(event.user)
             is ChatroomContract.Event.Disconnect -> disconnect()
             is ChatroomContract.Event.SetUserName -> updateUserName(event.name)
             is ChatroomContract.Event.OnEditingNameChange -> {
@@ -110,7 +111,11 @@ class ChatroomViewModel @Inject constructor(
         viewModelScope.launch {
             getNearbyMessagesUseCase().collect { message ->
                 android.util.Log.d("ChatViewModel", "Received nearby message: ${message.content}")
-                chatRepository.saveMessage(message)
+                if (message.type == com.youxiang8727.googlenearbychatroom.domain.model.MessageType.KICK) {
+                    setEffect { ChatroomContract.Effect.ShowToast(message.content) }
+                } else {
+                    chatRepository.saveMessage(message)
+                }
             }
         }
         viewModelScope.launch {
@@ -142,11 +147,12 @@ class ChatroomViewModel @Inject constructor(
                     isHost = advertising
                 )
 
-                val otherUsers = userMap.values.map { (otherName, otherId) ->
+                val otherUsers = userMap.entries.map { (endpointId, info) ->
                     ChatroomContract.ChatUser(
-                        name = otherName,
-                        id = otherId,
-                        isHost = otherId == roomId
+                        name = info.first,
+                        id = info.second,
+                        endpointId = endpointId,
+                        isHost = info.second == roomId
                     )
                 }
 
@@ -240,6 +246,17 @@ class ChatroomViewModel @Inject constructor(
                 setEffect { ChatroomContract.Effect.ShowToast("Media saved to gallery") }
             } catch (e: Exception) {
                 setEffect { ChatroomContract.Effect.ShowToast("Failed to save media: ${e.message}") }
+            }
+        }
+    }
+
+    private fun kickUser(user: ChatroomContract.ChatUser) {
+        viewModelScope.launch {
+            try {
+                nearbyRepository.kickUser(user.endpointId)
+                setEffect { ChatroomContract.Effect.ShowToast("${user.name} has been kicked") }
+            } catch (e: Exception) {
+                setEffect { ChatroomContract.Effect.ShowToast("Failed to kick user: ${e.message}") }
             }
         }
     }

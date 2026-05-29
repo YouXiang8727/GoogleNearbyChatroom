@@ -10,6 +10,7 @@ class ChatroomContract {
     data class ChatUser(
         val name: String,
         val id: String,
+        val endpointId: String = "",
         val isHost: Boolean = false
     )
 
@@ -38,6 +39,7 @@ class ChatroomContract {
         data class SendMedia(val uri: String, val type: com.youxiang8727.googlenearbychatroom.domain.model.MessageType) : Event()
         data class DeleteChatHistory(val chatroomId: String) : Event()
         data class DownloadMedia(val uri: String, val type: com.youxiang8727.googlenearbychatroom.domain.model.MessageType) : Event()
+        data class KickUser(val user: ChatUser) : Event()
         object Disconnect : Event()
         data class SetUserName(val name: String) : Event()
         data class OnEditingNameChange(val isEditing: Boolean) : Event()

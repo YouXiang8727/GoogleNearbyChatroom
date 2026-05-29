@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -239,6 +240,17 @@ fun ChatScreen(
                                                             imageVector = Icons.Default.Person,
                                                             contentDescription = null,
                                                             tint = if (user.isHost) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            trailingContent = {
+                                                if (state.isAdvertising && !user.isHost) {
+                                                    IconButton(onClick = { onEvent(ChatroomContract.Event.KickUser(user)) }) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.RemoveCircleOutline,
+                                                            contentDescription = "Kick User",
+                                                            tint = MaterialTheme.colorScheme.error
                                                         )
                                                     }
                                                 }

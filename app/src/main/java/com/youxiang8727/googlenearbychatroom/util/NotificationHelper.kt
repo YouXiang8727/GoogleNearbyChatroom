@@ -53,6 +53,7 @@ class NotificationHelper(private val context: Context) {
             MessageType.IMAGE -> "Sent an image"
             MessageType.VIDEO -> "Sent a video"
             MessageType.GIF -> "Sent a GIF"
+            MessageType.KICK -> "System notification"
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
