@@ -128,6 +128,34 @@ class ChatroomViewModel @Inject constructor(
                 setState { copy(connectedEndpoints = endpoints) }
             }
         }
+        viewModelScope.launch {
+            combine(
+                nearbyRepository.connectedUsers,
+                uiState.map { it.userName }.distinctUntilChanged(),
+                uiState.map { it.userId }.distinctUntilChanged(),
+                uiState.map { it.isAdvertising }.distinctUntilChanged(),
+                uiState.map { it.chatroomId }.distinctUntilChanged()
+            ) { userMap, name, id, advertising, roomId ->
+                val currentUser = ChatroomContract.ChatUser(
+                    name = name,
+                    id = id,
+                    isHost = advertising
+                )
+
+                val otherUsers = userMap.values.map { (otherName, otherId) ->
+                    ChatroomContract.ChatUser(
+                        name = otherName,
+                        id = otherId,
+                        isHost = otherId == roomId
+                    )
+                }
+
+                val allUsers = (listOf(currentUser) + otherUsers).distinctBy { it.id }
+                allUsers.sortedByDescending { it.isHost }
+            }.collect { sortedUsers ->
+                setState { copy(chatroomUsers = sortedUsers) }
+            }
+        }
     }
 
     private fun startDiscovery() {

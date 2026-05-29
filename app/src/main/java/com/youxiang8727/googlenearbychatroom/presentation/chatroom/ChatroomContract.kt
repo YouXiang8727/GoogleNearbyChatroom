@@ -7,6 +7,12 @@ import com.youxiang8727.googlenearbychatroom.presentation.base.UiEvent
 import com.youxiang8727.googlenearbychatroom.presentation.base.UiState
 
 class ChatroomContract {
+    data class ChatUser(
+        val name: String,
+        val id: String,
+        val isHost: Boolean = false
+    )
+
     data class State(
         val messages: List<ChatMessage> = emptyList(),
         val discoveredChatrooms: List<Chatroom> = emptyList(),
@@ -14,6 +20,7 @@ class ChatroomContract {
         val isAdvertising: Boolean = false,
         val isDiscovering: Boolean = false,
         val connectedEndpoints: List<String> = emptyList(),
+        val chatroomUsers: List<ChatUser> = emptyList(),
         val userName: String = "",
         val userId: String = "",
         val chatroomName: String = "",

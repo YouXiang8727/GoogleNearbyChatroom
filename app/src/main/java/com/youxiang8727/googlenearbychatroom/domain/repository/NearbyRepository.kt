@@ -10,6 +10,7 @@ interface NearbyRepository {
     val isAdvertising: Flow<Boolean>
     val isDiscovering: Flow<Boolean>
     val connectedEndpoints: Flow<List<String>>
+    val connectedUsers: Flow<Map<String, Pair<String, String>>> // endpointId -> (userName, userId)
 
     suspend fun startAdvertising(userName: String, userId: String, chatroomName: String)
     suspend fun stopAdvertising()
@@ -23,7 +24,6 @@ interface NearbyRepository {
     suspend fun disconnect()
 
     companion object {
-        const val MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024L // 10 MB
-        const val MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024L // 100 MB
+        const val MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024L // 10 MB
     }
 }

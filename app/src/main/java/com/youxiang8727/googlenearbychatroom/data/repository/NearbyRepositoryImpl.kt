@@ -59,6 +59,9 @@ class NearbyRepositoryImpl @Inject constructor(
     private val _connectedEndpoints = MutableStateFlow<List<String>>(emptyList())
     override val connectedEndpoints = _connectedEndpoints.asStateFlow()
 
+    private val _connectedUsers = MutableStateFlow<Map<String, Pair<String, String>>>(emptyMap())
+    override val connectedUsers = _connectedUsers.asStateFlow()
+
     private var currentChatroomId: String = ""
     private val endpointNames = mutableMapOf<String, String>()
     private var isDisconnectingManually = false
@@ -87,6 +90,16 @@ class NearbyRepositoryImpl @Inject constructor(
         }
     }
 
+    private fun getParsedUserInfo(endpointId: String): Pair<String, String>? {
+        val rawName = endpointNames[endpointId] ?: return null
+        val parts = rawName.split("|")
+        return when (parts.size) {
+            3 -> parts[1] to parts[2] // chatroomName|userName|userId (from Host)
+            2 -> parts[0] to parts[1] // userName|userId (from Guest)
+            else -> null
+        }
+    }
+
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             endpointNames[endpointId] = info.endpointName
@@ -96,6 +109,10 @@ class NearbyRepositoryImpl @Inject constructor(
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
                 _connectedEndpoints.update { it + endpointId }
+                getParsedUserInfo(endpointId)?.let { userInfo ->
+                    _connectedUsers.update { it + (endpointId to userInfo) }
+                }
+
                 // Only Host emits "joined" message to notify everyone
                 // Guest shouldn't emit "Host joined" because Host is the room owner
                 if (_isAdvertising.value) {
@@ -106,6 +123,7 @@ class NearbyRepositoryImpl @Inject constructor(
 
         override fun onDisconnected(endpointId: String) {
             _connectedEndpoints.update { it - endpointId }
+            _connectedUsers.update { it - endpointId }
             if (!isDisconnectingManually) {
                 emitSystemMessage("${getFormattedName(endpointId)} left the chatroom")
             }
@@ -156,7 +174,7 @@ class NearbyRepositoryImpl @Inject constructor(
                             }
                         } else {
                             _messages.tryEmit(receivedMessage)
-                            
+
                             // Background Notification Logic
                             val app = context.applicationContext as? ChatApplication
                             if (app?.isAppInBackground == true) {
@@ -222,10 +240,10 @@ class NearbyRepositoryImpl @Inject constructor(
             MessageType.GIF -> "gif"
             else -> "dat"
         }
-        
+
         val roomDir = File(context.filesDir, "media_${metadata.chatroomId}")
         if (!roomDir.exists()) roomDir.mkdirs()
-        
+
         val permanentFile = File(roomDir, "media_${System.currentTimeMillis()}.$extension")
 
         // Thumbnail logic
@@ -343,7 +361,7 @@ class NearbyRepositoryImpl @Inject constructor(
                         val parts = info.endpointName.split("|")
                         val chatroomName = parts.getOrNull(0) ?: info.endpointName
                         val hostId = parts.getOrNull(2) ?: ""
-                        
+
                         _discoveredChatrooms.update { currentList ->
                             currentList.filterNot { it.id == endpointId } + Chatroom(
                                 id = endpointId,
@@ -391,7 +409,7 @@ class NearbyRepositoryImpl @Inject constructor(
         )
         val json = gson.toJson(chatMessage)
         val payload = Payload.fromBytes(json.toByteArray(Charsets.UTF_8))
-        
+
         // Save locally first
         chatRepository.saveMessage(chatMessage)
         outgoingPayloads[payload.id] = chatMessage.id
@@ -498,7 +516,7 @@ class NearbyRepositoryImpl @Inject constructor(
             try {
                 val sourceUri = Uri.parse(uri)
                 val fileName = "Nearby_${System.currentTimeMillis()}.${if (type == MessageType.VIDEO) "mp4" else if (type == MessageType.GIF) "gif" else "jpg"}"
-                
+
                 val contentValues = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                     put(MediaStore.MediaColumns.MIME_TYPE, when (type) {
@@ -543,6 +561,7 @@ class NearbyRepositoryImpl @Inject constructor(
         isDisconnectingManually = true
         connectionsClient.stopAllEndpoints()
         _connectedEndpoints.value = emptyList()
+        _connectedUsers.value = emptyMap()
         stopAdvertising()
         stopDiscovery()
     }
